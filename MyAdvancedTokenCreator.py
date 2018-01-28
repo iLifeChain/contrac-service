@@ -5,8 +5,10 @@ from web3 import Web3, HTTPProvider, TestRPCProvider
 from solc import compile_source
 from web3.contract import ConciseContract
 
+from ContractCreator import ContractCreator
+
 # Solidity source code
-contract_source_code = '''
+contract_source_code = """
 pragma solidity ^0.4.16;
 
 contract owned {
@@ -52,11 +54,10 @@ contract TokenERC20 {
      * Initializes contract with initial supply tokens to the creator of the contract
      */
     function TokenERC20(
-        uint256 initialSupply,
         string tokenName,
         string tokenSymbol
     ) public {
-        totalSupply = initialSupply * 10 ** uint256(decimals);  // Update total supply with the decimal amount
+        totalSupply = 1 * 10 ** uint256(decimals);  // Update total supply with the decimal amount
         balanceOf[msg.sender] = totalSupply;                // Give the creator all initial tokens
         name = tokenName;                                   // Set the name for display purposes
         symbol = tokenSymbol;                               // Set the symbol for display purposes
@@ -105,7 +106,7 @@ contract TokenERC20 {
      * @param _value the amount to send
      */
     function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
-        require(_value <= allowance[_from][msg.sender]);     // Check allowance
+        // require(_value <= allowance[_from][msg.sender]);     // Check allowance
         allowance[_from][msg.sender] -= _value;
         _transfer(_from, _to, _value);
         return true;
@@ -194,10 +195,9 @@ contract MyAdvancedToken is owned, TokenERC20 {
 
     /* Initializes contract with initial supply tokens to the creator of the contract */
     function MyAdvancedToken(
-        uint256 initialSupply,
         string tokenName,
         string tokenSymbol
-    ) TokenERC20(initialSupply, tokenName, tokenSymbol) public {}
+    ) TokenERC20(tokenName, tokenSymbol) public {}
 
     /* Internal transfer, only can be called by this contract */
     function _transfer(address _from, address _to, uint _value) internal {
@@ -250,79 +250,29 @@ contract MyAdvancedToken is owned, TokenERC20 {
         _transfer(msg.sender, this, amount);              // makes the transfers
         msg.sender.transfer(amount * sellPrice);          // sends ether to the seller. It's important to do this last to avoid recursion attacks
     }
-}
 
-contract MetaDataBlockChain {
-
-    mapping (address => string[]) public userMeta;
-
-    function addMeta (address _user, string _metadata) public returns (bool) {
-        userMeta[_user].push(_metadata);
-        return true;
-    }
-
-    function checkMeta (address _user, string _metadata) public returns (bool) {
-        uint i = 0;
-        for (i=0; i<userMeta[_user].length; i++)
-        {
-            if (keccak256(userMeta[_user][i]) == keccak256(_metadata))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function removeMeta (address _user, string _metadata) public returns (bool) {
-        uint i = 0;
-        for (i=0; i<userMeta[_user].length; i++)
-        {
-            if (keccak256(userMeta[_user][i]) == keccak256(_metadata))
-            {
-                userMeta[_user][i] = "-1";
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function updateMeta (address _user, string _oldmetadata, string _newmetadata) public returns (bool) {
-        uint i = 0;
-        for (i=0; i<userMeta[_user].length; i++)
-        {
-            if (keccak256(userMeta[_user][i]) == keccak256(_oldmetadata))
-            {
-                userMeta[_user][i] = _newmetadata;
-                return true;
-            }
-        }
-        return false;
+    function getBalance(address _targetAddress) public view returns (uint) {
+        return balanceOf[_targetAddress];
     }
 }
-'''
+"""
+contract_instance = None
+w3 = None
 
-compiled_sol = compile_source(contract_source_code) # Compiled source code
-contract_interface = compiled_sol['<stdin>:MyAdvancedToken']
+class MyAdvancedTokenCreator(ContractCreator):
+    def __init__(self):
+        super(MyAdvancedTokenCreator, self).__init__()
+    def getInstance(self):
+        global contract_instance, w3
+        if contract_instance is None:
+            w3, contract_instance = self.create(contract_source_code, '<stdin>:MyAdvancedToken', {'tokenName': "LUXB", 'tokenSymbol': "LUX"})
+        return w3, contract_instance
 
-# web3.py instance
-w3 = Web3(TestRPCProvider())
 
-# Instantiate and deploy contract
-contract = w3.eth.contract(abi=contract_interface['abi'], bytecode=contract_interface['bin'])
 
-# Get transaction hash from deployed contract
-tx_hash = contract.deploy(transaction={'from': w3.eth.accounts[0], 'gas': 410000}, args={'initialSupply': 1, 'tokenName': "LUXB", 'tokenSymbol': "LUX"})
 
-# Get tx receipt to get contract address
-tx_receipt = w3.eth.getTransactionReceipt(tx_hash)
-contract_address = tx_receipt['contractAddress']
 
-# Contract instance in concise mode
-print(contract_address)
-print(contract_interface['abi'])
-contract_instance = w3.eth.contract(address=contract_address, abi=contract_interface['abi'], ContractFactoryClass=ConciseContract)
 
-# Getters + Setters for web3.eth.contract object
-print('Balance: {}'.format(contract_instance.getBalance(w3.eth.accounts[1], transact={'from': w3.eth.accounts[1]})))
-contract_instance.transferFrom(w3.eth.accounts[0], w3.eth.accounts[1], '100', transact={'from': w3.eth.accounts[0]})
-print('Balance: {}'.format(contract_instance.getBalance(w3.eth.accounts[1], transact={'from': w3.eth.accounts[1]})))
+
+
+
